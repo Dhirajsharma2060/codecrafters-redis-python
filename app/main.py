@@ -11,8 +11,14 @@ def main():
     pong="+PONG\r\n"
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     #server_socket.accept() # wait for client
-    client,addr=server_socket.accept()
-    client.send(pong.encode())
+    client=server_socket.accept()#client socket ke through accept karega 
+    #client.send(pong.encode())
+    while True:#always true 
+        request: bytes = client.recv(512)#request jho bhi ho 
+        data: str = request.decode()#request ka data decode hoga 
+        # print(data)
+        if "ping" in data.lower():#agar ping hai to client ko PONg 
+            client.send(pong.encode())
 
 
 
