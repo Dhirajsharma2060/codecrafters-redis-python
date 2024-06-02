@@ -12,9 +12,7 @@ def main():
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     #server_socket.accept() # wait for client
     client,addr=server_socket.accept()
-    with client:
-        client.recv(1029)
-        client.send(pong.encode())
+    client.send(pong.encode())
 
 
 
