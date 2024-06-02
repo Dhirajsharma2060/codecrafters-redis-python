@@ -11,7 +11,7 @@ def handle_client(client_address,client_socket):
             #split the command to CLRF (\r\n)
             commands = request.decode().split('\r\n')
             for command in commands:
-                if command.lower()=="ping":
+                if command.lower()=="ping": #jho bhi uppercase me bhi likha ho command  ko usse  bhi ye lowercase ne convert karega 
                     client_socket.sendall(b"+PONG\r\n")
     except Exception as ex:
         print(f"error handleing the client {client_address}:{ex}")
