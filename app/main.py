@@ -3,7 +3,7 @@ import socket
 def main():
     print("Logs from your program will appear here!")
 
-    pong = "+PONG\r\n"
+    pong_response = "+PONG\r\n"
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     
     while True:
@@ -16,13 +16,11 @@ def main():
                 if not request:
                     break  # Break if no more data
 
-                data = request.decode().lower()  # Decode request and convert to lowercase
-
                 # Split the request by CRLF (\r\n) to handle multiple commands
-                commands = data.split('\r\n')
+                commands = request.decode().split('\r\n')
                 for command in commands:
-                    if "ping" in command:
-                        client_socket.sendall(pong.encode())  # Send "pong" response
+                    if command.lower() == "ping":
+                        client_socket.sendall(pong_response.encode())  # Send "+PONG\r\n" response
         except Exception as e:
             print(f"Error: {e}")
         finally:
