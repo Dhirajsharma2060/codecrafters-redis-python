@@ -10,14 +10,19 @@ def handle_client(client_socket, client_address):
                 break  # if no more data, then the connection will break
             
             data = request.decode()
-            response = "+PONG\r\n"
             
-            if "echo" in data:
-                res_data = data.split("\r\n")[-2]
-                content_len = len(res_data)
-                response = f"${content_len}\r\n{res_data}\r\n"
-            
-            client_socket.send(response.encode())
+            if data.startswith("*1") and "PING" in data:
+                response = "+PONG\r\n"
+                client_socket.send(response.encode())
+            elif data.startswith("*2") and "ECHO" in data:
+                parts = data.split("\r\n")
+                message = parts[4]
+                response = f"${len(message)}\r\n{message}\r\n"
+                client_socket.send(response.encode())
+            else:
+                # Handle unexpected input or commands
+                response = "-ERROR\r\n"
+                client_socket.send(response.encode())
     
     except Exception as ex:
         print(f"Error handling the client {client_address}: {ex}")
