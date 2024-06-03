@@ -11,14 +11,21 @@ def handle_client(client_socket, client_address):
             
             data = request.decode()
             
-            if data.startswith("*1") and "PING" in data:
+            if data.startswith("*1") and "PING" in data:#RESP protocol ka  use karke use karte hai *1 which means only one command which by default will be ping
                 response = "+PONG\r\n"
-                client_socket.send(response.encode())
-            elif data.startswith("*2") and "ECHO" in data:
+                client_socket.send(response.encode())    
+            elif data.startswith("*2") and "ECHO" in data:#RESP protocol me (*2) matlab ko command aur uska kuch element like ECHO HEY print hoga HEY
                 parts = data.split("\r\n")
                 message = parts[4]
                 response = f"${len(message)}\r\n{message}\r\n"
                 client_socket.send(response.encode())
+            elif  data.startwith("*3") and "SET" in data:
+                response="+OK\r\n"
+            elif data.startswith("*3") and "GET" in data:
+                parts = data.split("\r\n")
+                key = parts[4]
+                response = f"${len(key)}\r\n{key}\r\n"
+
             else:
                 # Handle unexpected input or commands
                 response = "-ERROR\r\n"
