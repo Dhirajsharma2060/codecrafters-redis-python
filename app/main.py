@@ -11,6 +11,8 @@ def handle_client(client_address,client_socket):
             #split the command to CLRF (\r\n)
             commands = request.decode().split('\r\n')
             for command in commands:
+                if command=='':
+                    continue
                 parts=command.split()
                 if not  parts:
                     continue
