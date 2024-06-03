@@ -1,32 +1,24 @@
 import socket
 import threading
 
-def handle_client(client_address, client_socket):
+def handle_client(client_socket, client_address):
     print(f"Client: {client_address}")
     try:
         while True:
-            request = client_socket.recv(512)
+            request = client_socket.recv(1024)
             if not request:
                 break  # if no more data, then the connection will break
-
-            # Split the request into commands by CRLF (\r\n)
-            commands = request.decode().split('\r\n')
-            for command in commands:
-                if command == '':
-                    continue  # Skip empty commands
-
-                parts = command.split()
-                if not parts:
-                    continue
-
-                cmd = parts[0].lower()
-
-                if cmd == "ping":
-                    client_socket.sendall(b"+PONG\r\n")
-                elif cmd == "echo" and len(parts) > 1:
-                    message = " ".join(parts[1:])
-                    response = f"${len(message)}\r\n{message}\r\n"
-                    client_socket.sendall(response.encode())
+            
+            data = request.decode()
+            response = "+PONG\r\n"
+            
+            if "echo" in data:
+                res_data = data.split("\r\n")[-2]
+                content_len = len(res_data)
+                response = f"${content_len}\r\n{res_data}\r\n"
+            
+            client_socket.send(response.encode())
+    
     except Exception as ex:
         print(f"Error handling the client {client_address}: {ex}")
     finally:
@@ -39,8 +31,9 @@ def main():
 
     while True:
         client_socket, address = server_socket.accept()  # Accept client connection
+        print(f"Accepted connection from {address[0]}:{address[1]}")
         # Create a new thread to handle the client
-        client_thread = threading.Thread(target=handle_client, args=(address, client_socket))
+        client_thread = threading.Thread(target=handle_client, args=(client_socket, address))
         # Start a thread for each new client
         client_thread.start()
 
