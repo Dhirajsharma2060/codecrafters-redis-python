@@ -1,5 +1,6 @@
 import socket
 import threading
+key_value_store = {}
 
 def handle_client(client_socket, client_address):
     print(f"Client: {client_address}")
@@ -20,11 +21,21 @@ def handle_client(client_socket, client_address):
                 response = f"${len(message)}\r\n{message}\r\n"
                 client_socket.send(response.encode())
             elif data.startswith("*3") and "SET" in data:
-                response = "+OK\r\n"
-            elif data.startswith("*3") and "GET" in data:
                 parts = data.split("\r\n")
                 key = parts[4]
-                response = f"${len(key)}\r\n{key}\r\n"
+                value = parts[6]
+                key_value_store[key] = value  # Store key-value pair in the dictionary
+                response = "+OK\r\n"
+                client_socket.send(response.encode())
+            elif data.startswith("*2") and "GET" in data:
+                parts = data.split("\r\n")
+                key = parts[4]
+                if key in key_value_store:
+                    value = key_value_store[key]
+                    response = f"${len(value)}\r\n{value}\r\n"
+                else:
+                    response = "$-1\r\n"  # Key not found response
+                client_socket.send(response.encode())
 
             else:
                 # Handle unexpected input or commands
