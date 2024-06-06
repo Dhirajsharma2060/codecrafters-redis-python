@@ -1,5 +1,6 @@
 import socket
 import threading
+
 key_value_store = {}
 
 def handle_client(client_socket, client_address):
@@ -11,24 +12,23 @@ def handle_client(client_socket, client_address):
                 break  # if no more data, then the connection will break
             
             data = request.decode()
+            print(f"Received data: {data}")  # <-- Added logging
             
-            if data.startswith("*1") and "PING" in data:#RESP protocol ka  use karke use karte hai *1 which means only one command which by default will be ping
+            parts = data.split("\r\n")
+            if parts[0].startswith("*1") and "PING" in parts:  # <-- Changed parsing
                 response = "+PONG\r\n"
                 client_socket.send(response.encode())
-            elif data.startswith("*2") and "ECHO" in data:#RESP protocol me (*2) matlab ko command aur uska kuch element like ECHO HEY printe
-                parts = data.split("\r\n")
+            elif parts[0].startswith("*2") and "ECHO" in parts:  # <-- Changed parsing
                 message = parts[4]
                 response = f"${len(message)}\r\n{message}\r\n"
                 client_socket.send(response.encode())
-            elif data.startswith("*3") and "SET" in data:
-                parts = data.split("\r\n")
+            elif parts[0].startswith("*3") and "SET" in parts:  # <-- Changed parsing
                 key = parts[4]
                 value = parts[6]
                 key_value_store[key] = value  # Store key-value pair in the dictionary
                 response = "+OK\r\n"
                 client_socket.send(response.encode())
-            elif data.startswith("*2") and "GET" in data:
-                parts = data.split("\r\n")
+            elif parts[0].startswith("*2") and "GET" in parts:  # <-- Changed parsing
                 key = parts[4]
                 if key in key_value_store:
                     value = key_value_store[key]
@@ -36,7 +36,6 @@ def handle_client(client_socket, client_address):
                 else:
                     response = "$-1\r\n"  # Key not found response
                 client_socket.send(response.encode())
-
             else:
                 # Handle unexpected input or commands
                 response = "-ERROR\r\n"
