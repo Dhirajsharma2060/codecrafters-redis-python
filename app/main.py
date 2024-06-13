@@ -1,108 +1,81 @@
 import socket
-import threading
-import time
-import argparse
+import asyncio
+from datetime import datetime, timedelta
+from argparse import ArgumentParser
 
-key_value_store = {}
-expiry_times = {}
-lock = threading.Lock()
+store = {}
 
-def handle_ping(parts, client_socket):
-    response = "+PONG\r\n"
-    client_socket.send(response.encode())
+def get_curr_time_and_add(milliseconds_to_add):
+    current_time = datetime.now()
+    delta = timedelta(milliseconds=int(milliseconds_to_add))
+    new_time = current_time + delta
+    return new_time
 
-def handle_echo(parts, client_socket):
-    message = parts[4]
-    response = f"${len(message)}\r\n{message}\r\n"
-    client_socket.send(response.encode())
-
-def handle_set(parts, client_socket):
-    key = parts[4]
-    value = parts[6]
-    with lock:
-        key_value_store[key] = value
-    response = "+OK\r\n"
-    client_socket.send(response.encode())
-
-def handle_get(parts, client_socket):
-    key = parts[4]
-    with lock:
-        if key in key_value_store and (key not in expiry_times or time.time() < expiry_times[key]):
-            value = key_value_store[key]
-            response = f"${len(value)}\r\n{value}\r\n"
-        else:
-            response = "$-1\r\n"  # Key not found or expired
-    client_socket.send(response.encode())
-
-def handle_set_px(parts, client_socket):
-    key = parts[4]
-    value = parts[6]
-    expiry_time_ms = int(parts[10])
-    with lock:
-        key_value_store[key] = value
-        expiry_times[key] = time.time() + expiry_time_ms / 1000.0
-    response = "+OK\r\n"
-    client_socket.send(response.encode())
-
-command_handlers = {
-    "PING": handle_ping,
-    "ECHO": handle_echo,
-    "SET": handle_set,
-    "GET": handle_get,
-}
-
-def handle_client(client_socket, client_address):
-    print(f"Client: {client_address}")
+async def handle_connection(reader, writer):
+    print("New connection")
     try:
         while True:
-            request = client_socket.recv(1024)
-            if not request:
-                break  # if no more data, then the connection will break
-            
-            data = request.decode()
-            print(f"Received data: {data}")
-            
-            parts = data.split("\r\n")
-            print(f"Parsed parts: {parts}")  # Log the parsed parts
-            
-            try:
-                if parts[0] == "*1" and parts[2].upper() in command_handlers:
-                    command_handlers[parts[2].upper()](parts, client_socket)
-                elif parts[0] == "*5" and parts[2].upper() == "SET" and parts[8].upper() == "PX":
-                    handle_set_px(parts, client_socket)
+            data = await reader.read(1024)
+            if not data:
+                break
+            split_data = data.split(b"\r\n")
+            print(split_data)
+            if split_data[2] == b"PING":
+                writer.write(b"+PONG\r\n")
+                await writer.drain()
+            elif split_data[2] == b"ECHO":
+                return_string = b"\r\n".join([split_data[3], split_data[4]]) + b"\r\n"
+                writer.write(return_string)
+                await writer.drain()
+            elif split_data[2] == b"SET":
+                if len(split_data) > 8 and split_data[8] == b"px":
+                    val = get_curr_time_and_add(split_data[10])
+                    store[split_data[4]] = (split_data[6], val)
                 else:
-                    response = "-ERROR\r\n"
-                    client_socket.send(response.encode())
-            except IndexError as e:
-                print(f"IndexError: {e}")
-                response = "-ERROR\r\n"
-                client_socket.send(response.encode())
-            except Exception as e:
-                print(f"Unexpected error: {e}")
-                response = "-ERROR\r\n"
-                client_socket.send(response.encode())
-    
-    except Exception as ex:
-        print(f"Error handling the client {client_address}: {ex}")
+                    store[split_data[4]] = split_data[6]
+                writer.write(b"+OK\r\n")
+                await writer.drain()
+            elif split_data[2] == b"GET":
+                key = split_data[4]
+                if key not in store:
+                    return_string = b"$-1\r\n"
+                elif isinstance(store[key], tuple):
+                    if store[key][1] <= datetime.now():
+                        del store[key]
+                        return_string = b"$-1\r\n"
+                    else:
+                        return_string = (
+                            b"\r\n".join(
+                                [
+                                    b"$" + str(len(store[key][0])).encode("utf-8"),
+                                    store[key][0],
+                                ]
+                            )
+                            + b"\r\n"
+                        )
+                else:
+                    return_string = (
+                        b"\r\n".join(
+                            [b"$" + str(len(store[key])).encode("utf-8"), store[key]]
+                        )
+                        + b"\r\n"
+                    )
+                writer.write(return_string)
+                await writer.drain()
     finally:
-        client_socket.close()
-        print(f"Client {client_address} is disconnected")
+        writer.close()
+        await writer.wait_closed()
 
-def main():
-    parser = argparse.ArgumentParser(description='Start a Redis-like server.')
-    parser.add_argument('--port', type=int, default=6379, help='Port number to run the server on')
+async def main():
+    parser = ArgumentParser("A Redis server written in Python")
+    parser.add_argument("--port", type=int, default=6379)
     args = parser.parse_args()
-
-    print(f"Starting server on port {args.port}")
-    server_socket = socket.create_server(("localhost", args.port), reuse_port=True)
-
-    while True:
-        client_socket, address = server_socket.accept()  # Accept client connection
-        print(f"Accepted connection from {address[0]}:{address[1]}")
-        # Create a new thread to handle the client
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, address))
-        # Start a thread for each new client
-        client_thread.start()
+    
+    server = await asyncio.start_server(
+        handle_connection, "localhost", args.port
+    )
+    async with server:
+        await server.serve_forever()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
