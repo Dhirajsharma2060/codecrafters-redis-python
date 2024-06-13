@@ -73,7 +73,12 @@ def handle_client(client_socket, client_address):
                 else:
                     response = "-ERROR\r\n"
                     client_socket.send(response.encode())
-            except IndexError:
+            except IndexError as e:
+                print(f"IndexError: {e}")
+                response = "-ERROR\r\n"
+                client_socket.send(response.encode())
+            except Exception as e:
+                print(f"Unexpected error: {e}")
                 response = "-ERROR\r\n"
                 client_socket.send(response.encode())
     
